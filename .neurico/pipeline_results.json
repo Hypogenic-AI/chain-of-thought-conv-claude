@@ -1,0 +1,27 @@
+{
+  "success": true,
+  "stages": {
+    "resource_finder": {
+      "success": true,
+      "completion_marker": "/workspaces/chain-of-thought-conv-claude/.resource_finder_complete",
+      "outputs": {
+        "literature_review": "/workspaces/chain-of-thought-conv-claude/literature_review.md",
+        "resources_catalog": "/workspaces/chain-of-thought-conv-claude/resources.md",
+        "papers_dir": "/workspaces/chain-of-thought-conv-claude/papers",
+        "datasets_dir": "/workspaces/chain-of-thought-conv-claude/datasets",
+        "code_dir": "/workspaces/chain-of-thought-conv-claude/code"
+      },
+      "log_file": "/workspaces/chain-of-thought-conv-claude/logs/resource_finder_claude.log",
+      "transcript_file": "/workspaces/chain-of-thought-conv-claude/logs/resource_finder_claude_transcript.jsonl",
+      "elapsed_time": 1333.5593111515045
+    },
+    "experiment_runner": {
+      "success": true,
+      "return_code": 0,
+      "elapsed_time": 4960.454570531845,
+      "log_file": "/workspaces/chain-of-thought-conv-claude/logs/execution_claude.log",
+      "transcript_file": "/workspaces/chain-of-thought-conv-claude/logs/execution_claude_transcript.jsonl"
+    }
+  },
+  "work_dir": "/workspaces/chain-of-thought-conv-claude"
+}

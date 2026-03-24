@@ -1,0 +1,8 @@
+\section{Conclusion}
+\label{sec:conclusion}
+
+We presented the first controlled study of how chain-of-thought prompting affects output convergence in large language models. By comparing direct and CoT prompting across three models and three benchmarks, we showed that CoT's convergence effect is task-dependent and bidirectional: it dramatically increases both within-model and cross-model agreement on mathematical reasoning (Cohen's $d$ up to $+2.39$) while decreasing agreement on multiple-choice tasks ($d$ up to $-0.91$). The convergence effect is strongest across models of different capability levels, with CoT effectively erasing capability gaps on math.
+
+The common intuition that CoT makes models ``think alike'' is only half right. CoT causes convergence toward correct answers on structured problems where step-by-step reasoning constrains the solution path, but it introduces divergence on tasks where explicit reasoning can lead to overthinking. Convergence and accuracy move together, suggesting that CoT-induced homogenization is a byproduct of improved reasoning rather than an independent effect.
+
+Future work should extend this analysis across model families (not just sizes), measure convergence at the reasoning-chain and representation levels, and test whether few-shot CoT or other prompting variants alter the convergence patterns we observe. Understanding when and why models converge is essential for building reliable AI systems that genuinely benefit from multiple perspectives.

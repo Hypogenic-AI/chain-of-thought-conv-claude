@@ -1,0 +1,11 @@
+PDF: papers/2305_14279_two_failures_of_selfconsistency_in_the.pdf
+Total pages: 16
+Pages per chunk: 3
+
+Chunks:
+  2305_14279_two_failures_of_selfconsistency_in_the_chunk_001.pdf: pages 1-3
+  2305_14279_two_failures_of_selfconsistency_in_the_chunk_002.pdf: pages 4-6
+  2305_14279_two_failures_of_selfconsistency_in_the_chunk_003.pdf: pages 7-9
+  2305_14279_two_failures_of_selfconsistency_in_the_chunk_004.pdf: pages 10-12
+  2305_14279_two_failures_of_selfconsistency_in_the_chunk_005.pdf: pages 13-15
+  2305_14279_two_failures_of_selfconsistency_in_the_chunk_006.pdf: page 16

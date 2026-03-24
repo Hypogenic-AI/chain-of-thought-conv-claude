@@ -1,0 +1,890 @@
+You are an academic paper writer. Generate a complete NEURIPS style paper
+based on the experiment results provided.
+
+════════════════════════════════════════════════════════════════════════════════
+                         IMPORTANT: BEFORE YOU START
+════════════════════════════════════════════════════════════════════════════════
+
+Before writing any content, you MUST complete these steps:
+
+1. READ THE SKILL: Review the paper-writer skill at .claude/skills/paper-writer/SKILL.md
+2. READ THE STYLE GUIDE: Study templates/paper_writing/lab_style_guide.md carefully
+3. REVIEW EXAMPLES: Browse paper_examples/ for formatting and language patterns:
+   - Look at sections/1.introduction.tex for language style
+   - Look at tables/*.tex for table formatting
+   - Look at commands/*.tex for macro usage
+4. VERIFY COMMAND TEMPLATES: Command templates (math.tex, general.tex, macros.tex) are pre-copied to paper_draft/commands/
+
+CRITICAL: Reference example papers for FORMATTING and LANGUAGE STYLE only.
+Do NOT copy content, phrasing, or narrative structure from the example papers.
+The examples are in a different research domain - focus only on presentation style.
+
+════════════════════════════════════════════════════════════════════════════════
+                            EXPERIMENT REPORT
+════════════════════════════════════════════════════════════════════════════════
+
+# Research Report: Does Chain of Thought Cause Models to Converge More?
+
+## 1. Executive Summary
+
+**Research Question**: Does Chain of Thought (CoT) prompting cause large language models to produce more convergent outputs compared to direct prompting, both within a single model and across different models?
+
+**Key Finding**: CoT&#39;s effect on convergence is **task-dependent and bidirectional**. On mathematical reasoning tasks (GSM8K), CoT dramatically increases both within-model and cross-model convergence (Cohen&#39;s d up to +2.39, p &lt; 0.001). However, on multiple-choice tasks (CommonsenseQA, ARC-Challenge), CoT **decreases** convergence — models produce more diverse outputs with CoT than without it (Cohen&#39;s d up to -0.91, p &lt; 0.001). This reveals that CoT does not uniformly homogenize model outputs; rather, it acts as a convergence mechanism only when there is a clear, derivable correct answer.
+
+**Practical Implications**: The common intuition that CoT makes models &#34;think alike&#34; is only half right. CoT causes convergence toward correct answers on structured problems, but introduces divergence on tasks where reasoning is more subjective. This has important consequences for ensemble design, model selection, and understanding AI homogenization.
+
+## 2. Goal
+
+### Hypothesis
+The use of Chain of Thought in large language models causes more or less convergence in model representations and persona compared to models without Chain of Thought.
+
+### Why This Matters
+LLMs are increasingly perceived as converging in outputs and &#34;personality.&#34; If CoT — the dominant prompting paradigm — systematically homogenizes outputs, this has implications for:
+- **Diversity of AI-generated content**: If CoT makes all models say the same thing, using multiple models provides no diversity benefit
+- **Ensemble methods**: Cross-model agreement under CoT could falsely inflate confidence
+- **Model evaluation**: High agreement between models on CoT tasks may reflect shared reasoning biases, not correctness
+
+### Gap Addressed
+No prior work has directly compared within-model and cross-model convergence with vs. without CoT as the independent variable. Existing work (Wang et al. 2022, Xiong et al. 2025) studies convergence *within* CoT but not the effect of *adding* CoT vs. not using it.
+
+## 3. Data Construction
+
+### Datasets
+
+| Dataset | Source | Size Used | Task Type | Answer Format |
+|---------|--------|-----------|-----------|---------------|
+| GSM8K (test) | openai/gsm8k | 30 questions | Math reasoning | Numeric |
+| CommonsenseQA (val) | tau/commonsense_qa | 30 questions | Commonsense reasoning | 5-choice (A-E) |
+| ARC-Challenge (test) | allenai/ai2_arc | 30 questions | Science reasoning | 4-choice (A-D) |
+
+### Sampling
+- Random sample of 30 questions per dataset (seed=42)
+- GSM8K provides numeric answers; CommonsenseQA and ARC provide multiple-choice answers
+- Questions span varying difficulty levels within each dataset
+
+### Data Quality
+- All 90 questions validated as well-formed with extractable gold answers
+- No missing values or duplicates
+- Balanced representation across answer options for MC datasets
+
+## 4. Experiment Description
+
+### Methodology
+
+#### High-Level Approach
+We compared two prompting conditions across three models from the GPT-4.1 family:
+1. **Direct prompting**: Ask for the answer only, no reasoning
+2. **Zero-shot CoT**: Add &#34;Let&#39;s think step by step&#34; and request reasoning before answering
+
+For each question × model × condition, we generated 5 independent samples at temperature=0.7 to measure output diversity.
+
+#### Why This Method?
+- Temperature &gt; 0 is necessary to observe output diversity (deterministic decoding trivially gives AAR=1.0)
+- T=0.7 follows the self-consistency literature (Wang et al. 2022)
+- Multiple samples per question enable pairwise agreement computation
+- Three models from the same family control for training data while varying capacity
+
+### Implementation Details
+
+#### Models
+| Model | Type | Via |
+|-------|------|-----|
+| GPT-4.1 | Large | OpenAI API |
+| GPT-4.1-mini | Medium | OpenAI API |
+| GPT-4.1-nano | Small | OpenAI API |
+
+#### Hyperparameters
+| Parameter | Value | Rationale |
+|-----------|-------|-----------|
+| Temperature | 0.7 | Standard for diversity measurement (Wang et al. 2022) |
+| Max tokens (direct) | 150 | Short answers only |
+| Max tokens (CoT) | 600 | Allow full reasoning chain |
+| Samples per question | 5 | Balance between statistical power and cost |
+| Questions per dataset | 30 | Sufficient for paired statistical tests |
+
+#### Total API Calls
+3 models × 90 questions × 2 conditions × 5 samples = **2,700 API calls**
+
+### Evaluation Metrics
+
+1. **Answer Agreement Rate (AAR)**: Pairwise agreement among 5 samples from the same model on the same question. AAR=1.0 means all 5 samples gave the same answer.
+
+2. **Cross-Model Pairwise Agreement**: For each question, compute pairwise agreement across all 5×5=25 pairs of samples between two models.
+
+3. **Output Entropy**: Shannon entropy of the answer distribution per question (lower = more convergent).
+
+4. **Accuracy**: Fraction of samples matching the gold answer (for context).
+
+### Statistical Analysis
+- **Wilcoxon signed-rank test**: Non-parametric paired test comparing CoT vs. direct AAR, paired by question
+- **Cohen&#39;s d**: Effect size computed on paired differences
+- **Significance level**: α = 0.05
+
+## 5. Results
+
+### 5.1 Within-Model Answer Convergence (H1)
+
+**Key Result**: CoT&#39;s effect on within-model convergence depends strongly on task type.
+
+| Model | Dataset | Direct AAR | CoT AAR | Diff | Cohen&#39;s d | p-value |
+|-------|---------|-----------|---------|------|-----------|---------|
+| gpt-4.1 | gsm8k | 0.870 ± 0.275 | **0.980 ± 0.108** | **+0.110** | +0.464 | **0.027** |
+| gpt-4.1 | commonsenseqa | **0.980 ± 0.108** | 0.733 ± 0.275 | **-0.247** | -0.908 | **0.001** |
+| gpt-4.1 | arc_challenge | **1.000 ± 0.000** | 0.871 ± 0.228 | **-0.129** | -0.564 | **0.015** |
+| gpt-4.1-mini | gsm8k | 0.753 ± 0.320 | **0.980 ± 0.108** | **+0.227** | +0.644 | **0.006** |
+| gpt-4.1-mini | commonsenseqa | 0.947 ± 0.171 | 0.927 ± 0.197 | -0.020 | -0.110 | 0.480 |
+| gpt-4.1-mini | arc_challenge | 0.964 ± 0.132 | 0.904 ± 0.213 | -0.061 | -0.230 | 0.230 |
+| gpt-4.1-nano | gsm8k | 0.560 ± 0.377 | **0.913 ± 0.205** | **+0.353** | +0.886 | **&lt;0.001** |
+| gpt-4.1-nano | commonsenseqa | 0.940 ± 0.156 | 0.867 ± 0.227 | -0.073 | -0.242 | 0.169 |
+| gpt-4.1-nano | arc_challenge | 0.957 ± 0.158 | 0.835 ± 0.253 | -0.121 | -0.418 | 0.070 |
+
+**Pattern**:
+- **Math (GSM8K)**: CoT significantly increases convergence across all 3 models (all p &lt; 0.03). Effect is strongest for the smallest model (nano: d=+0.886).
+- **Commonsense/Science**: CoT tends to decrease convergence, significantly so for gpt-4.1 on commonsenseqa (d=-0.908, p=0.001).
+
+### 5.2 Cross-Model Answer Convergence (H2)
+
+**Key Result**: The same bidirectional pattern holds for cross-model convergence — CoT makes different models agree more on math, but less on MC tasks.
+
+| Model Pair | Dataset | Direct Agree | CoT Agree | Diff | Cohen&#39;s d | p-value |
+|------------|---------|-------------|-----------|------|-----------|---------|
+| 4.1 vs mini | gsm8k | 0.579 | **0.984** | **+0.405** | +0.959 | **&lt;0.001** |
+| 4.1 vs nano | gsm8k | 0.212 | **0.940** | **+0.728** | +1.753 | **&lt;0.001** |
+| mini vs nano | gsm8k | 0.155 | **0.940** | **+0.785** | +2.386 | **&lt;0.001** |
+| 4.1 vs mini | commonsenseqa | **0.940** | 0.739 | **-0.201** | -0.744 | **&lt;0.001** |
+| 4.1 vs nano | commonsenseqa | **0.899** | 0.673 | **-0.225** | -0.723 | **0.002** |
+| mini vs nano | commonsenseqa | 0.889 | 0.843 | -0.047 | -0.173 | 0.240 |
+| 4.1 vs mini | arc_challenge | **0.971** | 0.816 | **-0.156** | -0.492 | **0.022** |
+| 4.1 vs nano | arc_challenge | **0.936** | 0.767 | **-0.169** | -0.448 | **0.021** |
+| mini vs nano | arc_challenge | 0.907 | 0.843 | -0.064 | -0.206 | 0.182 |
+
+**Striking finding**: On GSM8K, CoT transforms cross-model agreement from near-random (0.155 for mini vs. nano) to near-perfect (0.940), with Cohen&#39;s d = 2.386 — an enormous effect size. Models that barely agree on math without CoT become nearly identical with CoT.
+
+### 5.3 Accuracy Context
+
+| Model | Dataset | Direct Acc | CoT Acc | Change |
+|-------|---------|-----------|---------|--------|
+| gpt-4.1 | gsm8k | 0.700 | **0.920** | +0.220 |
+| gpt-4.1 | commonsenseqa | **0.947** | 0.733 | -0.214 |
+| gpt-4.1 | arc_challenge | **0.929** | 0.864 | -0.065 |
+| gpt-4.1-mini | gsm8k | 0.500 | **0.920** | +0.420 |
+| gpt-4.1-mini | commonsenseqa | **0.927** | 0.920 | -0.007 |
+| gpt-4.1-mini | arc_challenge | **0.900** | 0.893 | -0.007 |
+| gpt-4.1-nano | gsm8k | 0.187 | **0.873** | +0.686 |
+| gpt-4.1-nano | commonsenseqa | **0.853** | 0.820 | -0.033 |
+| gpt-4.1-nano | arc_challenge | **0.864** | 0.821 | -0.043 |
+
+**Important**: CoT dramatically improves math accuracy (especially for smaller models) but slightly hurts MC task accuracy. This accuracy pattern mirrors the convergence pattern — convergence and accuracy move together.
+
+### 5.4 Output Entropy
+
+| Model | Dataset | Direct Entropy | CoT Entropy | Direction |
+|-------|---------|---------------|-------------|-----------|
+| gpt-4.1 | gsm8k | 0.246 | **0.032** | ↓ More convergent |
+| gpt-4.1 | commonsenseqa | **0.032** | 0.444 | ↑ More diverse |
+| gpt-4.1 | arc_challenge | **0.000** | 0.216 | ↑ More diverse |
+| gpt-4.1-nano | gsm8k | 0.880 | **0.155** | ↓ More convergent |
+| gpt-4.1-nano | commonsenseqa | **0.105** | 0.226 | ↑ More diverse |
+| gpt-4.1-nano | arc_challenge | **0.084** | 0.302 | ↑ More diverse |
+
+Entropy tells the same story: CoT reduces entropy (increases convergence) on math, but increases entropy (decreases convergence) on MC tasks.
+
+### Visualizations
+
+All plots saved to `results/plots/`:
+- `within_model_aar.png`: Box plots of within-model agreement rates
+- `cross_model_agreement.png`: Box plots of cross-model pairwise agreement
+- `accuracy_comparison.png`: Bar charts comparing accuracy across conditions
+- `entropy_comparison.png`: Box plots of output entropy
+- `summary_heatmap.png`: Heatmap of AAR across all conditions
+
+## 5. Result Analysis
+
+### Key Findings
+
+1. **CoT causes convergence on math, divergence on MC tasks.** This is the central finding. The direction of CoT&#39;s effect on convergence is not uniform — it depends critically on whether the task has a unique, derivable answer.
+
+2. **Cross-model convergence effects are larger than within-model effects.** The most dramatic convergence is between different models on math (d=2.39 for mini vs. nano), suggesting CoT bridges capability gaps between models of different sizes.
+
+3. **Convergence and accuracy are coupled.** Where CoT increases accuracy (math), it also increases convergence. Where CoT decreases accuracy (MC), it also decreases convergence. This suggests CoT doesn&#39;t independently &#34;homogenize&#34; — it converges outputs toward correct answers.
+
+4. **Smaller models benefit more from CoT-induced convergence.** GPT-4.1-nano goes from 0.560 to 0.913 AAR on math with CoT, while GPT-4.1 goes from 0.870 to 0.980. The convergence effect of CoT is inversely proportional to model capability.
+
+5. **Direct prompting is surprisingly convergent on MC tasks.** Models achieve near-perfect AAR (0.94-1.00) on MC tasks without CoT, suggesting that for well-calibrated models, adding reasoning can introduce noise.
+
+### Hypothesis Testing
+
+| Hypothesis | Result | Evidence |
+|------------|--------|----------|
+| H1: CoT increases within-model convergence | **Partially supported** | True for math (p&lt;0.03), false for MC tasks |
+| H2: CoT increases cross-model convergence | **Partially supported** | True for math (p&lt;0.001, massive effects), false for MC |
+| H3: CoT increases response similarity | Not directly tested (see limitations) | — |
+| H4: Convergence effect stronger for structured tasks | **Strongly supported** | Math d&gt;0, MC d&lt;0 across all models |
+
+### Surprises and Insights
+
+1. **CoT hurts MC accuracy for gpt-4.1**: On commonsenseqa, gpt-4.1 drops from 94.7% to 73.3% with CoT. The reasoning process introduces errors on questions the model can answer intuitively.
+
+2. **Near-perfect cross-model convergence on math with CoT**: Mini and nano, which agree only 15.5% without CoT, jump to 94.0% with CoT. This is remarkable — CoT makes a nano model nearly indistinguishable from a mini model on math.
+
+3. **The &#34;overthinking&#34; effect**: For MC tasks, CoT may cause models to second-guess initially correct intuitions, consistent with Liu &amp; Wang (2025) finding that extended reasoning can &#34;overthink&#34; on easy tasks.
+
+### Error Analysis
+
+**Math (GSM8K) — where CoT helps**:
+- Without CoT, smaller models often fail to compute multi-step arithmetic
+- With CoT, step-by-step computation dramatically reduces errors
+- Remaining errors in CoT are mostly arithmetic mistakes in intermediate steps
+
+**MC tasks — where CoT hurts**:
+- Without CoT, models directly pattern-match to the correct answer
+- With CoT, models sometimes reason themselves into wrong answers (e.g., considering unusual interpretations of commonsense questions)
+- The reasoning chain introduces noise when the task doesn&#39;t require multi-step deduction
+
+### Limitations
+
+1. **Model family limitation**: All three models are from the GPT-4.1 family (different sizes). Cross-family comparison (GPT vs. Claude vs. Gemini) would be more informative for the &#34;persona convergence&#34; question. OpenRouter was not available with the current API key.
+
+2. **Answer-level only**: We measured answer convergence, not representation-level convergence (which would require model internals) or full response text similarity (which we planned but did not implement to keep the study focused).
+
+3. **Sample size**: 30 questions per dataset × 5 samples is adequate for detecting large effects (which we found) but may miss smaller effects on MC tasks.
+
+4. **Task coverage**: Only three task types were tested. Other domains (coding, creative writing, translation) may show different patterns.
+
+5. **Prompt sensitivity**: We used only zero-shot CoT (&#34;Let&#39;s think step by step&#34;). Few-shot CoT or other variants may produce different convergence patterns.
+
+6. **Same-family models**: Using models from the same family (GPT-4.1, mini, nano) means they likely share training data and architecture. True cross-model convergence would be better tested across model families.
+
+## 6. Conclusions
+
+### Summary
+Chain of Thought does not uniformly cause models to converge. Instead, CoT acts as a **task-dependent convergence mechanism**: it dramatically increases output agreement on tasks with unique derivable answers (math), while slightly decreasing agreement on tasks where models can &#34;overthink&#34; (multiple choice). The convergence effect is strongest across models of different capability levels, suggesting CoT bridges capability gaps by providing a shared computational scaffold.
+
+### Implications
+
+**For practitioners**:
+- Using CoT for math/reasoning tasks will make different models (and different runs of the same model) produce nearly identical answers — good for reliability, bad for ensemble diversity
+- For MC/commonsense tasks, CoT may reduce reliability compared to direct prompting
+- Ensemble methods using CoT on math tasks should expect high agreement and not interpret it as independent confirmation
+
+**For researchers**:
+- The &#34;convergence of LLMs&#34; narrative needs to be qualified by prompting method and task type
+- CoT convergence is coupled to accuracy, not an independent &#34;homogenization&#34; effect
+- The mechanism appears to be that CoT channels computation through correct reasoning pathways, which are inherently more constrained than incorrect ones
+
+### Confidence in Findings
+High confidence in the directional findings (CoT increases math convergence, decreases MC convergence). The effect sizes are large (d &gt; 0.5) and statistically significant. Lower confidence in the generalizability to other model families and task types.
+
+## 7. Next Steps
+
+### Immediate Follow-ups
+1. **Cross-family comparison**: Test GPT vs. Claude vs. Gemini to assess whether CoT causes convergence *across* model architectures
+2. **Response-level similarity**: Compute embedding similarity of full responses to test H3 (response similarity vs. just answer agreement)
+3. **Few-shot CoT**: Test whether few-shot exemplars change the convergence pattern
+
+### Alternative Approaches
+- **Representation probing**: Use open-source models (LLaMA, Mistral) to measure internal activation similarity with vs. without CoT
+- **Semantic similarity**: Compare reasoning chains across models using embedding cosine similarity
+- **Task difficulty stratification**: Sort questions by difficulty and measure convergence as a function of difficulty level
+
+### Open Questions
+1. Does the CoT-convergence pattern hold for tasks with multiple valid answers (creative writing, open QA)?
+2. Is the convergence effect of CoT an artifact of training on similar CoT data, or a fundamental property of step-by-step reasoning?
+3. Does the &#34;overthinking&#34; effect on MC tasks persist with few-shot CoT that includes MC examples?
+
+## 8. Reproducibility
+
+### Environment
+- Python 3.x with OpenAI SDK
+- Models: gpt-4.1, gpt-4.1-mini, gpt-4.1-nano (via OpenAI API)
+- Random seed: 42
+- Temperature: 0.7
+- All API responses cached in `results/cache/`
+
+### How to Reproduce
+```bash
+source .venv/bin/activate
+python src/experiment.py   # ~45 min, ~2700 API calls
+python src/analysis.py     # ~1 min
+```
+
+### File Structure
+```
+results/
+├── all_responses.json        # All 2,700 raw API responses
+├── metrics_summary.json      # Aggregated statistical results
+├── within_model_metrics.json # Per-question within-model metrics
+├── cross_model_metrics.json  # Per-question cross-model metrics
+├── cache/                    # Individual cached API responses
+└── plots/
+    ├── within_model_aar.png
+    ├── cross_model_agreement.png
+    ├── accuracy_comparison.png
+    ├── entropy_comparison.png
+    └── summary_heatmap.png
+```
+
+## References
+
+1. Wei et al. (2022). &#34;Chain-of-Thought Prompting Elicits Reasoning in Large Language Models.&#34; NeurIPS 2022. arXiv:2201.11903
+2. Wang et al. (2022). &#34;Self-Consistency Improves Chain of Thought Reasoning in Language Models.&#34; ICLR 2023. arXiv:2203.11171
+3. Liu &amp; Wang (2025). &#34;Answer Convergence as a Signal for Early Stopping in Reasoning.&#34; arXiv:2506.02536
+4. Xiong et al. (2025). &#34;Mapping the Minds of LLMs: A Graph-Based Analysis of Reasoning LLM.&#34; arXiv:2505.13890
+5. Chen et al. (2023). &#34;Two Failures of Self-Consistency in the Multi-Step Reasoning of LLMs.&#34; TMLR 2024. arXiv:2305.14279
+6. MATCHA (2025). &#34;Robust Answers, Fragile Logic: Probing the Decoupling Hypothesis.&#34; arXiv:2505.17406
+7. Merrill &amp; Sabharwal (2024). &#34;On the Representational Capacity of Neural Language Models with Chain-of-Thought.&#34; arXiv:2406.14197
+
+
+════════════════════════════════════════════════════════════════════════════════
+                            RESEARCH PLAN
+════════════════════════════════════════════════════════════════════════════════
+
+# Research Plan: Does Chain of Thought Cause Models to Converge More?
+
+## Motivation &amp; Novelty Assessment
+
+### Why This Research Matters
+LLMs are increasingly perceived as converging in their outputs and &#34;persona&#34; — different models giving similar-sounding answers. Chain of Thought (CoT) prompting is now ubiquitous, but its effect on output diversity/convergence across and within models is unstudied. Understanding whether CoT homogenizes model outputs has implications for model selection, ensemble design, and the diversity of AI-generated content.
+
+### Gap in Existing Work
+The literature review reveals:
+- **Output-level convergence** (answer agreement) is well-studied within single models via self-consistency (Wang et al. 2022)
+- **Reasoning-path convergence** has been examined structurally (Xiong et al. 2025) and shown to decouple from answer convergence (MATCHA, 2025)
+- **Cross-model convergence** — whether different models produce more similar outputs under CoT — is **completely unexplored**
+- No study compares convergence *with vs. without CoT* as the independent variable across model families
+
+### Our Novel Contribution
+We conduct the first empirical study of whether CoT increases or decreases **cross-model convergence** (similarity of outputs across different LLMs) and **within-model convergence** (consistency of outputs across multiple samples from the same model). We test this across three reasoning domains (math, commonsense, science) using state-of-the-art models.
+
+### Experiment Justification
+- **Experiment 1 (Within-model convergence)**: Measures whether CoT makes a single model&#39;s outputs more self-consistent. Needed to establish baseline convergence effect before cross-model comparison.
+- **Experiment 2 (Cross-model convergence)**: Measures whether CoT makes different models&#39; outputs more similar to each other. This is the core novel question.
+- **Experiment 3 (Domain modulation)**: Tests whether convergence effects vary by task type (math vs. commonsense vs. science). Needed to understand generalizability.
+
+## Research Question
+Does Chain of Thought prompting cause large language models to produce more convergent outputs (both within a single model and across different models) compared to direct prompting?
+
+## Hypothesis Decomposition
+
+### H1: Within-model answer convergence
+CoT increases the agreement rate of final answers across multiple samples from the same model (compared to direct prompting).
+
+### H2: Cross-model answer convergence
+CoT increases the agreement rate of final answers across different models on the same questions (compared to direct prompting).
+
+### H3: Cross-model response similarity
+CoT increases the semantic similarity of full responses across different models (compared to direct prompting).
+
+### H4: Domain modulation
+The convergence effect of CoT is stronger for well-structured tasks (math) than for open-ended tasks (commonsense).
+
+## Proposed Methodology
+
+### Approach
+We prompt multiple LLMs on questions from three benchmarks under two conditions: **direct prompting** (no CoT) and **zero-shot CoT** (&#34;Let&#39;s think step by step&#34;). For each question × model × condition, we generate multiple samples (N=10) at temperature=0.7. We then measure convergence using answer agreement rates, output entropy, and embedding-based similarity.
+
+### Models (via API)
+1. **GPT-4.1** (OpenAI API) — `gpt-4.1`
+2. **Claude Sonnet 4.5** (OpenRouter) — `anthropic/claude-sonnet-4-5`
+3. **Gemini 2.5 Flash** (OpenRouter) — `google/gemini-2.5-flash-preview`
+
+### Datasets (sampled subsets)
+- **GSM8K**: 50 questions from test set (math reasoning)
+- **CommonsenseQA**: 50 questions from validation set (commonsense)
+- **ARC-Challenge**: 50 questions from test set (science)
+
+### Experimental Steps
+1. Sample 50 questions from each dataset (stratified by difficulty where possible)
+2. For each question, construct two prompts: direct and CoT
+3. For each question × prompt × model, generate 10 responses at T=0.7
+4. Extract final answers from all responses
+5. Compute within-model and cross-model convergence metrics
+6. Statistical comparison of convergence under CoT vs. direct
+
+### Baselines
+- **Direct prompting**: Primary control (no CoT instruction)
+- **Random baseline**: Expected agreement rate under uniform random answering
+
+### Evaluation Metrics
+1. **Answer Agreement Rate (AAR)**: Fraction of sample pairs with matching final answers (within-model)
+2. **Cross-Model Agreement Rate (CMAR)**: Fraction of model pairs agreeing on final answer per question
+3. **Output Entropy**: Shannon entropy of the answer distribution per question
+4. **Embedding Cosine Similarity**: Average pairwise cosine similarity of response embeddings (using text-embedding-3-small)
+5. **Accuracy**: Standard task accuracy for context
+
+### Statistical Analysis Plan
+- Paired t-tests (or Wilcoxon signed-rank) comparing CoT vs. direct on each metric, paired by question
+- Effect sizes (Cohen&#39;s d)
+- 95% confidence intervals
+- Bonferroni correction for multiple comparisons across datasets
+- Significance level: α = 0.05
+
+## Expected Outcomes
+- **H1 supported**: CoT increases within-model answer agreement (consistent with self-consistency literature)
+- **H2 direction unclear**: CoT may increase cross-model agreement (models converge on correct answers) or decrease it (models use different reasoning strategies)
+- **H3 direction unclear**: Full response similarity may decrease even if answer similarity increases (decoupling effect)
+- **H4 supported**: Math tasks should show stronger convergence than commonsense
+
+## Timeline and Milestones
+1. Environment setup &amp; code: 20 min
+2. Run experiments (API calls): 60-90 min
+3. Analysis &amp; visualization: 30 min
+4. Documentation: 20 min
+
+## Potential Challenges
+- API rate limits → use exponential backoff, cache responses
+- Cost management → limit to 50 questions × 3 datasets × 3 models × 2 conditions × 10 samples = 9,000 API calls
+- Answer extraction → need robust parsing for different response formats
+- OpenRouter availability → fallback to additional OpenAI models if needed
+
+## Success Criteria
+- Complete data collection for at least 2 models × 2 datasets × 2 conditions
+- Statistical tests with clear results (significant or null)
+- Visualizations showing convergence patterns
+- Documented findings in REPORT.md
+
+
+════════════════════════════════════════════════════════════════════════════════
+                          LITERATURE REVIEW
+════════════════════════════════════════════════════════════════════════════════
+
+# Literature Review: Does Chain of Thought Cause Models to Converge More?
+
+## Research Area Overview
+
+Chain-of-thought (CoT) prompting has become the dominant paradigm for eliciting reasoning from large language models. Since Wei et al. (2022) demonstrated that prompting models to &#34;think step by step&#34; dramatically improves reasoning performance, a rich body of work has explored CoT&#39;s mechanisms, limitations, and theoretical foundations. This review examines a specific question: **does CoT cause models to produce more convergent outputs** — in terms of final answers, reasoning paths, and internal representations — compared to direct prompting?
+
+The question of convergence spans multiple levels:
+1. **Answer-level convergence**: Do models produce more consistent final answers with CoT?
+2. **Reasoning-path convergence**: Do different reasoning chains converge to similar intermediate steps?
+3. **Representation-level convergence**: Do internal model activations become more similar under CoT?
+4. **Cross-model convergence**: Do different models produce more similar outputs when using CoT?
+
+## Key Papers
+
+### Paper 1: Chain of Thought Prompting Elicits Reasoning in Large Language Models
+- **Authors**: Wei, Wang, Schuurmans, Bosma, Xia, Chi, Le, Zhou
+- **Year**: 2022 (NeurIPS)
+- **arXiv**: 2201.11903
+- **Key Contribution**: Foundational CoT paper. Demonstrates that adding intermediate reasoning steps to few-shot prompts dramatically improves performance on arithmetic, commonsense, and symbolic reasoning tasks.
+- **Methodology**: Few-shot prompting with manually-written CoT exemplars; greedy decoding; tested on GPT-3 and PaLM at various scales.
+- **Datasets Used**: GSM8K, SVAMP, ASDiv, AQuA, MAWPS (arithmetic); CSQA, StrategyQA, Date/Sports Understanding (commonsense); Last Letter Concatenation, Coin Flip (symbolic)
+- **Results**: CoT only helps at ~100B+ parameters. Ablations show semantic content of the chain matters (not just extra tokens). Performance is robust across different annotators and exemplar orderings.
+- **Relevance to Convergence**: CoT narrows the output distribution toward correct answers at large scale, robust to prompt variation. However, the paper does not study representational convergence or whether different models converge on similar chains. The ablation ruling out &#34;dots only&#34; suggests convergence is in semantic reasoning structure, not just token count.
+- **Code Available**: No
+
+### Paper 2: Self-Consistency Improves Chain of Thought Reasoning in Language Models
+- **Authors**: Wang, Wei, Schuurmans, Le, Chi, Narang, Chowdhery, Zhou
+- **Year**: 2022 (ICLR 2023)
+- **arXiv**: 2203.11171
+- **Key Contribution**: Introduces self-consistency — sampling multiple CoT paths and taking majority vote over final answers. Demonstrates that correct reasoning paths converge on the same answer while incorrect paths scatter.
+- **Methodology**: Sample m=40 diverse reasoning paths (temperature=0.7), aggregate final answers by majority vote. No additional training.
+- **Datasets Used**: GSM8K, SVAMP, ASDiv, AQuA, MultiArith, AddSub (arithmetic); CSQA, StrategyQA, ARC (commonsense); Last Letter, Coin Flip (symbolic); ANLI, e-SNLI, RTE, BoolQ, HotpotQA (NLP)
+- **Results**: +17.9% on GSM8K for PaLM-540B over greedy CoT. Diversity of paths (not quantity) drives gains. Consistency percentage correlates strongly with accuracy (useful as uncertainty estimate). Crucially, normalized token probabilities are nearly uniform across correct and incorrect paths — the model cannot distinguish them by confidence.
+- **Relevance to Convergence**: **Central paper.** Establishes that CoT creates output-level convergence (final answer plurality) without confidence-level convergence (model assigns similar probabilities to all paths). Correct answers act as attractors across diverse reasoning trajectories. The mechanism exploits answer convergence while the reasoning paths themselves remain diverse.
+- **Code Available**: No (but straightforward to implement)
+
+### Paper 3: Answer Convergence as a Signal for Early Stopping in Reasoning
+- **Authors**: Liu, Wang
+- **Year**: 2025
+- **arXiv**: 2506.02536
+- **Key Contribution**: Studies within-trace answer convergence — shows models&#39; predicted answers stabilize well before the full CoT completes. Proposes Answer Convergence Ratio (ACR) metric and early stopping methods.
+- **Methodology**: Incrementally truncate CoT at sentence boundaries, force answer generation after each truncation. Measure when answer stabilizes. Test three early stopping strategies.
+- **Datasets Used**: NaturalQuestions, GSM8K, MATH-500, GPQA-Diamond, AIME 2024
+- **Results**: Models converge to final answer after ~60% of reasoning steps on average. Larger models converge earlier. On easy tasks (NQ), extended reasoning can &#34;overthink&#34; and diverge from correct answer. ACR is task-difficulty-modulated.
+- **Relevance to Convergence**: Directly establishes that answer convergence within a single generation is the norm, provides the ACR metric as a replicable convergence measure, and shows convergence is modulated by model scale and task difficulty. The ~40% redundant reasoning steps suggest substantial over-computation.
+- **Code Available**: Yes — HuggingFace Spaces: reasoning_earlystop
+
+### Paper 4: Mapping the Minds of LLMs: A Graph-Based Analysis of Reasoning LLM
+- **Authors**: Xiong et al.
+- **Year**: 2025
+- **arXiv**: 2505.13890
+- **Key Contribution**: Converts CoT traces into directed reasoning graphs and defines structural metrics including Convergence Ratio (gamma_C) — the proportion of nodes with in-degree &gt; 1, measuring how reasoning threads are synthesized.
+- **Methodology**: Three-stage pipeline: segment CoT into units, cluster into reasoning steps, detect semantic edges between steps. Define four graph metrics: exploration density, branching ratio, convergence ratio, linearity.
+- **Datasets Used**: GPQA-Diamond
+- **Results**: Convergence ratio gamma_C strongly predicts accuracy (r=0.68). Zero-shot prompting produces richer, more convergent graphs than few-shot. Few-shot prompting collapses reasoning structure toward linear chains. Larger models produce more convergent graphs.
+- **Relevance to Convergence**: **Provides the most structurally precise definition of convergence** — measuring integration of multiple reasoning threads. Shows convergence is malleable by prompting strategy (zero-shot &gt; few-shot) and that it causally associates with correctness. Critical methodological contribution.
+- **Code Available**: Promised but not confirmed
+
+### Paper 5: Two Failures of Self-Consistency in the Multi-Step Reasoning of LLMs
+- **Authors**: Chen, Zhong, Hao, Li, Liu, Huang, Ma, Gu, Li
+- **Year**: 2023 (TMLR 2024)
+- **arXiv**: 2305.14279
+- **Key Contribution**: Formalizes hypothetical consistency (can a model predict its own output?) and compositional consistency (does substituting intermediate answers preserve final answers?). Shows both are poor in GPT-3/4-era models.
+- **Methodology**: Hypothetical: 5-way multiple choice on model&#39;s own completions. Compositional: substitute model&#39;s sub-expression answers into parent expressions, check if final answer changes.
+- **Datasets Used**: Wikipedia, DailyDialog (hypothetical); Synthetic arithmetic, GeoQuery (compositional)
+- **Results**: Hypothetical consistency near random chance for all but largest models. Compositional consistency &lt;50% on arithmetic. 90% of failures are type-2: correct sub-answer but wrong final when substituted back.
+- **Relevance to Convergence**: Shows CoT steps do not converge in a logically integrated way — models fail to maintain consistency when their own intermediate outputs are reintroduced. Establishes the baseline inconsistency that CoT must overcome.
+- **Code Available**: No
+
+### Paper 6: Robust Answers, Fragile Logic: Probing the Decoupling Hypothesis
+- **Authors**: Various
+- **Year**: 2025
+- **arXiv**: 2505.17406
+- **Key Contribution**: Introduces MATCHA framework showing that LLMs maintain correct answers under perturbation while generating wildly inconsistent reasoning chains — the &#34;Decoupling Hypothesis.&#34;
+- **Datasets Used**: GSM8K, commonsense and logical reasoning benchmarks
+- **Results**: Answer-level convergence coexists with reasoning-level divergence. Adversarial perturbations reveal reasoning is often post-hoc rationalization.
+- **Relevance to Convergence**: Directly demonstrates that answer convergence and reasoning convergence are independent. CoT may converge answers without converging reasoning processes.
+- **Code Available**: Not confirmed
+
+### Paper 7: Let&#39;s Think Dot by Dot: Hidden Computation in Transformer Language Models
+- **Authors**: Pfau, Merrill, Bowman
+- **Year**: 2024
+- **arXiv**: 2404.15758
+- **Key Contribution**: Shows transformers can use meaningless filler tokens (dots) to solve hard tasks, demonstrating CoT&#39;s benefit can come from computational capacity (token budget) rather than semantic reasoning.
+- **Datasets Used**: Custom synthetic: 3SUM, 2SUM-Transform
+- **Results**: 34M-parameter LLaMA achieves 100% on 3SUM with filler tokens. Filler benefits scale with task complexity.
+- **Relevance to Convergence**: Dissociates semantic CoT from computational benefit. Convergence observed with CoT may be partly a token-budget artifact rather than evidence of coherent reasoning.
+- **Code Available**: Yes — https://github.com/JacobPfau/fillerTokens
+
+### Paper 8: On the Representational Capacity of Neural Language Models with Chain-of-Thought
+- **Authors**: Merrill, Sabharwal
+- **Year**: 2024
+- **arXiv**: 2406.14197
+- **Key Contribution**: Proves formally that CoT strictly expands the representational capacity of both RNN and transformer LMs. CoT-augmented LMs are equivalent to probabilistic Turing machines.
+- **Results**: CoT enables models to represent non-deterministic distributions over outputs, theoretically allowing more diverse (not more convergent) generation.
+- **Relevance to Convergence**: Provides formal basis for why CoT could increase output diversity rather than convergence — the model gains access to a richer class of distributions. The convergence question is thus: does CoT&#39;s expanded capacity get used to converge or diverge?
+- **Code Available**: Attempted at https://github.com/rycolab/cot-lms (not found)
+
+### Paper 9: Self-Consistency of Large Language Models under Ambiguity
+- **Authors**: Pfau, Merrill, Bowman
+- **Year**: 2023
+- **arXiv**: 2310.13439
+- **Key Contribution**: Measures cross-context self-consistency on ambiguous integer sequences. Finds consistency improves with model capability but models are poorly calibrated about their own consistency.
+- **Datasets Used**: Custom: 197 integer sequences (140 unambiguous, 57 ambiguous)
+- **Results**: Consistency 67-82% across GPT-3 to GPT-4. Even &#34;converged&#34; models internally assign significant probability mass to inconsistent alternatives.
+- **Relevance to Convergence**: Output-level convergence increases with scale, but internal probability distributions remain divergent. Surface convergence may mask internal uncertainty.
+- **Code Available**: Yes — https://github.com/JacobPfau/introspective-self-consistency
+
+### Paper 10: Measuring and Improving Consistency in Pretrained Language Models
+- **Authors**: Elazar, Kassner, Goldberg, Schütze
+- **Year**: 2021
+- **arXiv**: 2102.01017
+- **Key Contribution**: PARAREL benchmark — 328 paraphrase patterns for measuring factual consistency in masked LMs. Establishes pre-CoT baseline: models are inconsistent across paraphrases.
+- **Datasets Used**: PARAREL (328 patterns, 38 relations, ~27K KB tuples)
+- **Results**: Best model (BERT-large) only 61.1% consistent. Strong correlation between accuracy and consistency. Wikipedia-dominant training may help consistency.
+- **Relevance to Convergence**: Pre-CoT baseline establishing that LMs are inherently inconsistent. Provides the floor against which CoT&#39;s potential convergence-inducing effect should be measured.
+- **Code Available**: Yes — https://github.com/yanaiela/pararel
+
+### Additional Papers (Abstract-level review)
+
+- **CoT is Not True Reasoning** (2506.02878, 2025): Theoretical argument that CoT constrains sampling toward training-distribution patterns, not genuine reasoning. Predicts CoT causes convergence to familiar formats, not logical correctness.
+- **Feature Extraction and Steering for Enhanced CoT** (2505.15634, 2025): Uses SAEs to extract and steer CoT features. Shows reasoning depth is tunable via activation steering, with non-monotonic convergence effects.
+- **Compressed Chain of Thought** (2412.13171, 2024): Dense token representations can substitute for verbose CoT. Relevant to whether convergence depends on reasoning verbosity.
+- **Why think step-by-step?** (2304.03843, 2023): Bayesian analysis showing CoT works because it enables local factorization of complex distributions. Theoretical basis for when CoT should improve convergence.
+- **On the Hardness of Faithful CoT** (2406.10625, 2024): Shows faithful CoT (where chain causally determines answer) is computationally harder than unfaithful CoT. Relevant to decoupling of answer and reasoning convergence.
+- **Propositional Interpretability** (2501.15740, 2025): Framework for interpreting model propositions during reasoning. Could be used to measure internal convergence.
+
+## Common Methodologies
+
+1. **Sampling and aggregation** (Wang et al., 2022): Sample multiple CoT paths, measure answer convergence via majority voting. Standard for studying output-level convergence.
+2. **Truncation analysis** (Liu &amp; Wang, 2025): Progressively truncate CoT and measure when answer stabilizes. Provides within-trace convergence dynamics.
+3. **Graph-based structural analysis** (Xiong et al., 2025): Convert CoT to directed graphs, measure structural convergence via graph metrics.
+4. **Consistency testing** (Chen et al., 2023; Elazar et al., 2021): Paraphrase or compositionally transform queries, measure answer stability.
+5. **Perturbation probing** (MATCHA, 2025): Apply adversarial perturbations, measure whether answer and reasoning converge/diverge independently.
+
+## Standard Baselines
+
+- **Direct prompting** (no CoT): The primary control condition
+- **Greedy CoT decoding**: Single CoT path via temperature=0
+- **Self-consistency (majority vote)**: Multiple sampled CoT paths with answer aggregation
+- **Filler tokens**: Meaningless tokens replacing CoT content (computational control)
+
+## Evaluation Metrics
+
+- **Accuracy**: Task performance (% correct answers)
+- **Self-consistency rate**: Agreement across multiple sampled outputs
+- **Answer Convergence Ratio (ACR)**: Proportion of chain needed before answer stabilizes
+- **Convergence Ratio (gamma_C)**: Graph-based metric of reasoning thread synthesis
+- **Compositional consistency**: Answer stability under intermediate-result substitution
+- **Cosine similarity**: For internal representation convergence (not yet studied for CoT)
+- **Output entropy**: Diversity of generated outputs (proposed metric)
+
+## Datasets in the Literature
+
+| Dataset | Used In | Task Type | Size |
+|---------|---------|-----------|------|
+| GSM8K | Wei 2022, Wang 2022, Liu 2025, MATCHA | Math reasoning | 1,319 test |
+| MATH-500 | Liu 2025 | Hard math | 500 test |
+| GPQA-Diamond | Liu 2025, Xiong 2025 | Graduate QA | ~200 |
+| CommonsenseQA | Wei 2022, Wang 2022 | Commonsense | 1,221 val |
+| StrategyQA | Wei 2022, Wang 2022 | Multi-hop | ~2,300 |
+| ARC-Challenge | Wang 2022 | Science QA | 1,172 test |
+| NaturalQuestions | Liu 2025 | Open QA | 3,610 test |
+| AIME 2024 | Liu 2025 | Competition math | 30 |
+
+## Gaps and Opportunities
+
+1. **No study directly compares representation-level convergence with vs. without CoT.** All existing work measures output-level or structural convergence; internal activation similarity under CoT remains unstudied.
+2. **Cross-model convergence is unexplored.** Do different models produce more similar outputs when using CoT? This is the &#34;persona convergence&#34; aspect of the hypothesis.
+3. **The relationship between answer convergence and reasoning convergence needs quantification.** MATCHA shows they decouple, but the degree and conditions of decoupling are unknown.
+4. **Task difficulty modulates convergence** (shown by ACR analysis) but a systematic study across diverse domains is missing.
+5. **No study compares CoT convergence across model families** (e.g., GPT vs. Claude vs. LLaMA) to assess whether CoT homogenizes outputs across architectures.
+
+## Recommendations for Our Experiment
+
+### Recommended Datasets
+- **GSM8K test** (1,319 examples): Primary benchmark, universally used
+- **CommonsenseQA validation** (1,221 examples): Tests non-mathematical reasoning
+- **ARC-Challenge test** (1,172 examples): Science reasoning, different domain
+
+### Recommended Baselines
+- Direct prompting (no CoT) as primary control
+- Zero-shot CoT (&#34;Let&#39;s think step by step&#34;)
+- Few-shot CoT with manual exemplars
+- Self-consistency (multiple samples + majority vote)
+
+### Recommended Metrics
+- **Output similarity** (BLEU, ROUGE, or embedding cosine similarity between runs)
+- **Answer agreement rate** across multiple samples
+- **Output entropy** (diversity of generated answers)
+- **Representation cosine similarity** (if internal activations are accessible)
+- **Standard accuracy** for performance context
+
+### Methodological Considerations
+- Use temperature &gt; 0 for sampling to measure true output diversity
+- Compare multiple runs per prompt to distinguish stochastic variation from systematic convergence
+- Test both within-model convergence (same model, different runs) and cross-model convergence (different models, same prompts)
+- Include task difficulty as a variable (easy math vs. hard math vs. commonsense)
+- The &#34;convergence&#34; question has multiple valid operationalizations — clearly define which level is being measured
+
+
+════════════════════════════════════════════════════════════════════════════════
+                          PAPER REQUIREMENTS
+════════════════════════════════════════════════════════════════════════════════
+
+Generate a complete academic paper with the following structure:
+
+1. TITLE
+   - Clear, specific, informative
+   - Should convey main finding or contribution
+
+2. AUTHOR
+   - Use this exact author line in the \author{} block: Ari Holtzman and NeuriCo
+
+3. ABSTRACT (150-250 words)
+   - Problem statement
+   - Approach
+   - Key results
+   - Significance
+
+4. INTRODUCTION
+   - Research problem and motivation
+   - Gap in existing work
+   - Our contribution (be specific)
+   - Paper organization
+
+5. RELATED WORK
+   - Organized by theme/approach
+   - Position our work relative to prior work
+   - Cite papers from literature review
+
+6. METHODOLOGY
+   - Clear description of approach
+   - Experimental setup
+   - Datasets used
+   - Evaluation metrics
+   - Baselines
+
+7. RESULTS
+   - Present results with tables and figures
+   - Statistical analysis
+   - Comparison to baselines
+   - Ablation studies (if applicable)
+
+8. DISCUSSION
+   - Interpretation of results
+   - Limitations
+   - Broader implications
+
+9. CONCLUSION
+   - Summary of contributions
+   - Key findings
+   - Future work
+
+10. REFERENCES
+   - BibTeX format
+   - All cited papers
+
+════════════════════════════════════════════════════════════════════════════════
+                          OUTPUT FORMAT
+════════════════════════════════════════════════════════════════════════════════
+
+Create a MODULAR LaTeX project with the following directory structure:
+
+paper_draft/
+├── main.tex              # Main file that imports all sections
+├── references.bib        # BibTeX references
+├── sections/
+│   ├── abstract.tex      # Abstract content
+│   ├── introduction.tex  # Introduction section
+│   ├── related_work.tex  # Related work section
+│   ├── methodology.tex   # Methodology section
+│   ├── results.tex       # Results section
+│   ├── discussion.tex    # Discussion section
+│   └── conclusion.tex    # Conclusion section
+├── figures/              # Directory for any generated figures
+├── tables/               # Directory for complex standalone tables
+└── appendix/             # Directory for appendix sections (if needed)
+
+INSTRUCTIONS:
+1. First, create the directory structure above (mkdir -p paper_draft/sections paper_draft/figures paper_draft/tables paper_draft/appendix)
+2. Write main.tex using the EXACT preamble for NEURIPS:
+
+   \documentclass{article}
+   \usepackage[final]{neurips_2025}  % NEURIPS style (neurips_2025.sty is in paper_draft/)
+   \usepackage[hidelinks]{hyperref}  % REQUIRED: clickable links
+   \usepackage{booktabs}  % REQUIRED: professional tables
+   \usepackage{graphicx}
+   \usepackage{amsmath,amssymb}
+
+   % Import command files
+   \input{commands/math}
+   \input{commands/general}
+   \input{commands/macros}
+
+   % Use this bibliography style:
+   \bibliographystyle{plainnat}
+
+   \author{Ari Holtzman and NeuriCo}
+
+   - Use \input{sections/...} to include each section
+   - Use \bibliography{references} for references
+3. Write each section file with COMPLETE content (no placeholders)
+4. Each section file should include its \section{} command
+5. Write references.bib with all citations in BibTeX format
+6. After writing all files, compile the paper:
+   cd paper_draft && pdflatex -interaction=nonstopmode main.tex && bibtex main && pdflatex -interaction=nonstopmode main.tex && pdflatex -interaction=nonstopmode main.tex
+
+This modular structure allows humans to easily:
+- Edit individual sections without navigating a large file
+- Track changes per section
+- Reuse sections across different paper versions
+
+════════════════════════════════════════════════════════════════════════════════
+                          QUALITY REQUIREMENTS
+════════════════════════════════════════════════════════════════════════════════
+
+- Academic tone throughout
+- All claims must be supported by data from the experiment report
+- Proper citations using \cite{} commands
+- Clear figures and tables with proper captions
+- NO placeholder text - every section must have real content
+- The paper MUST compile without errors
+- If compilation fails, debug and fix the LaTeX errors
+
+════════════════════════════════════════════════════════════════════════════════
+                          LAB WRITING STYLE
+════════════════════════════════════════════════════════════════════════════════
+
+Follow these lab-specific conventions to match our paper style:
+
+1. LANGUAGE STYLE:
+   - Use active voice: "We propose", "We examine", "We focus on"
+   - Be direct and confident: "Our main question is...", "We hypothesize that..."
+   - State things clearly and simply - prefer plain language over jargon
+   - Use bold questions as paragraph organizers: {\bf what is X?}
+   - Include specific quantitative claims: "8.97% over baseline"
+   - Avoid fancy wording: "utilize" → "use", "facilitate" → "help"
+
+2. INTRODUCTION STRUCTURE:
+   - Engaging hook (get to the point quickly)
+   - Problem importance
+   - Gap identification
+   - Your approach with method figure reference
+   - Quantitative preview of results
+   - Contribution bullets (3-4 items, action verbs)
+
+3. CONTRIBUTION LISTS:
+   \begin{itemize}[leftmargin=*,itemsep=0pt,topsep=0pt]
+       \item We propose...
+       \item We conduct...
+       \item We complement...
+   \end{itemize}
+
+4. MODULAR COMMANDS STRUCTURE:
+   Command templates are pre-copied to paper_draft/commands/:
+   - math.tex: Math notation macros
+   - general.tex: Formatting macros
+   - macros.tex: Project-specific term definitions (customize this for your paper)
+
+   In main.tex, include:
+   \input{commands/math}
+   \input{commands/general}
+   \input{commands/macros}
+
+5. REFERENCE CONVENTIONS:
+   Use reference macros from math.tex:
+   - \figref{fig:name} for "figure 1" (lowercase, in-sentence)
+   - \Figref{fig:name} for "Figure 1" (capitalized, start of sentence)
+   - \secref{sec:name} for "section 2"
+
+6. TEXT FORMATTING:
+   - Use \para{Header text} for bold paragraph headers
+   - Define method/dataset names with \textsc and \xspace:
+     \newcommand{\methodname}{\textsc{MethodName}\xspace}
+
+7. TABLE FORMATTING:
+   - Use booktabs package (no vertical lines)
+   - Use \resizebox{\textwidth}{!}{...} for wide tables
+   - Use @{} to remove padding at table edges
+   - Use \cmidrule(lr){x-y} for sub-headers
+   - Use \textsc{} for dataset/method names in headers
+   - Bold best results with {\bf ...}
+
+8. FIGURE FORMATTING:
+   - Use 0.32\textwidth for 3-column subfigures
+   - Use 0.95\linewidth for full-width figures
+   - Use \input{figures/legend} for shared legends
+   - Write self-contained captions explaining key observations
+
+9. RESULTS PRESENTATION:
+   - Define \increase and \decrease for colored arrows (green up, red down)
+   - Bold best results in tables
+   - Report confidence intervals when available
+
+10. ALGORITHM STYLING:
+    - Use algpseudocode with [noend]
+    - Use \triangleright for comments
+
+11. HYPERLINKS (REQUIRED):
+    - Always use \usepackage[hidelinks]{hyperref} or with colored links
+    - All citations, section refs, figure refs, table refs must be clickable
+    - This is essential for reader navigation
+
+════════════════════════════════════════════════════════════════════════════════
+                          WORKFLOW: REVIEW AND REFLECT
+════════════════════════════════════════════════════════════════════════════════
+
+Before calling finish, you MUST complete these review steps:
+
+1. REVIEW RESOURCES (at the start):
+   - Read .claude/skills/paper-writer/SKILL.md for detailed guidance
+   - Study templates/paper_writing/lab_style_guide.md for style conventions
+   - Browse paper_examples/ for formatting and language patterns
+
+2. SELF-REFLECTION (before finishing):
+   After writing all sections, review your work against these criteria:
+
+   LANGUAGE CHECK:
+   - [ ] Is the writing clear and jargon-free?
+   - [ ] Are claims specific with quantitative support?
+   - [ ] Is active voice used throughout?
+
+   FORMATTING CHECK:
+   - [ ] Does main.tex include \input{commands/math}, \input{commands/general}, \input{commands/macros}?
+   - [ ] Is hyperref package included for clickable references?
+   - [ ] Do tables use booktabs (no vertical lines)?
+   - [ ] Are best results bolded in tables?
+   - [ ] Are figures/tables properly captioned?
+
+   STRUCTURE CHECK:
+   - [ ] Does introduction follow: hook → importance → gap → approach → preview → contributions?
+   - [ ] Are contribution bullets specific with action verbs?
+   - [ ] Does the paper compile without errors?
+
+3. FIX ISSUES:
+   - Address any issues found in the self-reflection
+   - Re-compile and verify the PDF looks correct
+
+Only after completing this review should you consider the paper finished.

@@ -1,0 +1,11 @@
+PDF: papers/2404_15758_lets_think_dot_by_dot_hidden.pdf
+Total pages: 17
+Pages per chunk: 3
+
+Chunks:
+  2404_15758_lets_think_dot_by_dot_hidden_chunk_001.pdf: pages 1-3
+  2404_15758_lets_think_dot_by_dot_hidden_chunk_002.pdf: pages 4-6
+  2404_15758_lets_think_dot_by_dot_hidden_chunk_003.pdf: pages 7-9
+  2404_15758_lets_think_dot_by_dot_hidden_chunk_004.pdf: pages 10-12
+  2404_15758_lets_think_dot_by_dot_hidden_chunk_005.pdf: pages 13-15
+  2404_15758_lets_think_dot_by_dot_hidden_chunk_006.pdf: pages 16-17

@@ -1,0 +1,69 @@
+\section{Methodology}
+\label{sec:method}
+
+We design a controlled experiment to isolate the effect of CoT on output convergence. The key idea is simple: prompt the same models on the same questions under two conditions (with and without CoT), generate multiple samples per condition, and compare the degree of agreement.
+
+\subsection{Experimental Design}
+
+\para{Prompting conditions.} We compare two conditions:
+\begin{itemize}[leftmargin=*,itemsep=0pt,topsep=0pt]
+    \item \textbf{Direct}: The model is instructed to provide only the final answer, with no reasoning.
+    \item \textbf{Zero-shot CoT}: The prompt includes ``Let's think step by step'' and requests reasoning before the final answer, following \citet{kojima2022large}.
+\end{itemize}
+We use zero-shot CoT rather than few-shot to avoid exemplar-specific confounds. Max token limits are set to 150 (direct) and 600 (CoT) to accommodate reasoning chains.
+
+\para{Models.} We use three models from the GPT-4.1 family, accessed via the OpenAI API:
+\begin{itemize}[leftmargin=*,itemsep=0pt,topsep=0pt]
+    \item \gptlarge --- the largest model in the family
+    \item \gptmini --- a medium-sized variant
+    \item \gptnano --- the smallest variant
+\end{itemize}
+Using models from the same family at different scales controls for training data and architecture while varying capability, allowing us to study how model size modulates convergence effects.
+
+\para{Sampling.} For each question $\times$ model $\times$ condition, we generate $K = 5$ independent samples at temperature $T = 0.7$. Temperature $> 0$ is necessary to observe output diversity (deterministic decoding trivially yields perfect agreement). We follow \citet{wang2022self} in using $T = 0.7$, which provides a balance between diversity and coherence.
+
+\subsection{Datasets}
+
+We sample 30 questions from each of three benchmarks, selected to span different reasoning domains and answer formats:
+
+\begin{table}[h]
+\centering
+\begin{tabular}{@{}llll@{}}
+\toprule
+\textbf{Dataset} & \textbf{Task Type} & \textbf{Answer Format} & \textbf{Split} \\
+\midrule
+\gsm \citep{cobbe2021gsm8k} & Math reasoning & Numeric (open) & Test \\
+\csqa \citep{talmor2019commonsenseqa} & Commonsense & 5-choice (A--E) & Validation \\
+\arc \citep{clark2018arc} & Science & 4-choice (A--D) & Test \\
+\bottomrule
+\end{tabular}
+\caption{Datasets used in our experiments. We sample 30 questions per dataset (seed = 42), yielding 90 questions total.}
+\label{tab:datasets}
+\end{table}
+
+The distinction between \gsm (open-ended numeric answers) and the multiple-choice datasets (\csqa, \arc) turns out to be critical for understanding CoT's convergence effects, as we show in \secref{sec:results}.
+
+\subsection{Metrics}
+\label{sec:metrics}
+
+\para{Answer agreement rate (\aar).} For a given question, model, and condition, we compute the pairwise agreement among the $K = 5$ samples. Formally, for samples $\{a_1, \ldots, a_K\}$:
+\begin{equation}
+\text{AAR} = \frac{1}{\binom{K}{2}} \sum_{i < j} \mathbf{1}[a_i = a_j]
+\label{eq:aar}
+\end{equation}
+An \aar of 1.0 means all 5 samples produced the same answer; lower values indicate more diverse outputs.
+
+\para{Cross-model pairwise agreement.} For a given question and condition, we compute pairwise agreement across all $K \times K = 25$ sample pairs between two models. This measures whether different models converge on the same answers.
+
+\para{Output entropy.} We compute the Shannon entropy of the answer distribution per question:
+\begin{equation}
+H = -\sum_{a \in \gA} p(a) \log_2 p(a)
+\label{eq:entropy}
+\end{equation}
+where $\gA$ is the set of distinct answers and $p(a)$ is the empirical frequency. Lower entropy indicates more convergent outputs.
+
+\para{Accuracy.} We report standard accuracy (fraction of samples matching the gold answer) to contextualize convergence with correctness.
+
+\subsection{Statistical Analysis}
+
+We use the Wilcoxon signed-rank test to compare CoT versus direct conditions, paired by question. This non-parametric test is appropriate because our metrics (\aar, agreement rates) are bounded and potentially non-normal. We report Cohen's $d$ as the effect size, computed on the paired differences. All tests use significance level $\alpha = 0.05$. We conduct 2,700 total API calls: 3 models $\times$ 90 questions $\times$ 2 conditions $\times$ 5 samples.

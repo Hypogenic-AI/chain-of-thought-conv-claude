@@ -1,0 +1,10 @@
+# Ignore large dataset files (JSONL dumps)
+*.jsonl
+
+# Ignore HuggingFace cache
+.cache/
+
+# Keep sample files and documentation
+!sample_5.json
+!README.md
+!.gitignore

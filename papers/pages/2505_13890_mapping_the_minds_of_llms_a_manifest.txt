@@ -1,0 +1,10 @@
+PDF: papers/2505_13890_mapping_the_minds_of_llms_a.pdf
+Total pages: 13
+Pages per chunk: 3
+
+Chunks:
+  2505_13890_mapping_the_minds_of_llms_a_chunk_001.pdf: pages 1-3
+  2505_13890_mapping_the_minds_of_llms_a_chunk_002.pdf: pages 4-6
+  2505_13890_mapping_the_minds_of_llms_a_chunk_003.pdf: pages 7-9
+  2505_13890_mapping_the_minds_of_llms_a_chunk_004.pdf: pages 10-12
+  2505_13890_mapping_the_minds_of_llms_a_chunk_005.pdf: page 13

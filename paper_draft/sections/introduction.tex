@@ -1,0 +1,20 @@
+\section{Introduction}
+\label{sec:intro}
+
+Large language models are increasingly perceived as converging---different models producing similar-sounding outputs, adopting similar ``personas,'' and arriving at the same conclusions. At the same time, chain-of-thought (CoT) prompting \citep{wei2022chain} has become the dominant paradigm for eliciting reasoning from LLMs. A natural question arises: does CoT itself cause this convergence? If prompting models to reason step-by-step systematically homogenizes their outputs, this has direct consequences for how we build, evaluate, and deploy these systems.
+
+{\bf Why convergence matters.} The degree to which LLM outputs converge---both within a single model across runs and across different models---affects several practical concerns. If CoT makes all models say the same thing, using multiple models for ensemble diversity provides no benefit. High cross-model agreement under CoT could falsely inflate confidence when aggregating predictions. And if CoT channels models toward shared reasoning patterns rather than genuinely independent solutions, we may mistake correlated errors for robust consensus.
+
+{\bf What we do not know.} Prior work has studied convergence \emph{within} CoT---self-consistency \citep{wang2022self} exploits the fact that multiple CoT paths converge on correct answers, and recent work maps structural convergence in reasoning graphs \citep{xiong2025mapping}. However, no study has directly compared convergence \emph{with versus without} CoT as the independent variable. We do not know whether adding CoT makes a single model's outputs more or less consistent, whether it makes different models agree more or less, or whether these effects depend on the task.
+
+{\bf Our approach.} We conduct a controlled experiment comparing two prompting conditions---direct prompting (answer only) and zero-shot CoT (``Let's think step by step'')---across three models from the GPT-4.1 family (\gptlarge, \gptmini, \gptnano) on three benchmarks spanning math, commonsense, and science reasoning. For each question, model, and condition, we generate 5 independent samples at temperature 0.7, then measure within-model answer agreement rate (\aar) and cross-model pairwise agreement.
+
+{\bf What we find.} CoT's effect on convergence is \emph{task-dependent and bidirectional}. On mathematical reasoning (\gsm), CoT dramatically increases both within-model and cross-model convergence, with effect sizes up to Cohen's $d = +2.39$ ($p < 0.001$). But on multiple-choice tasks (\csqa, \arc), CoT \emph{decreases} convergence---models produce more diverse outputs with CoT than without it ($d$ up to $-0.91$, $p = 0.001$). The most striking result is cross-model: \gptmini and \gptnano agree on only $15.5\%$ of math answers without CoT but $94.0\%$ with CoT, while on commonsense tasks, agreement drops from $88.9\%$ to $84.3\%$.
+
+We make the following contributions:
+\begin{itemize}[leftmargin=*,itemsep=0pt,topsep=0pt]
+    \item We conduct the first controlled study of how CoT affects output convergence, measuring both within-model consistency and cross-model agreement as a function of prompting condition.
+    \item We show that CoT's convergence effect is bidirectional: it increases agreement on tasks with unique derivable answers (math) while decreasing agreement on multiple-choice reasoning tasks.
+    \item We demonstrate that CoT bridges capability gaps between models of different sizes, transforming near-random cross-model agreement into near-perfect agreement on mathematical reasoning.
+    \item We provide evidence that convergence and accuracy are coupled under CoT---models converge toward correct answers, not toward arbitrary shared outputs---with implications for ensemble design and model evaluation.
+\end{itemize}

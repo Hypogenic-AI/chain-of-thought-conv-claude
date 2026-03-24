@@ -1,0 +1,36 @@
+\section{Discussion}
+\label{sec:discussion}
+
+\subsection{Why Does CoT Converge on Math but Diverge on Multiple-Choice?}
+
+We propose that CoT acts as a convergence mechanism when the task admits a unique, derivable answer through a structured reasoning process. Mathematical word problems have a single correct numeric answer that can be reached through step-by-step computation. CoT channels models through these computation steps, and the correct computation pathway is inherently more constrained than the space of incorrect ones. This is consistent with the theoretical analysis of \citet{feng2023towards}, who show that CoT enables transformers to solve problems requiring sequential computation.
+
+Multiple-choice tasks, by contrast, often admit correct answers through pattern matching or associative retrieval without explicit reasoning. When forced to reason explicitly via CoT, models may consider alternative interpretations, second-guess initial intuitions, or weight competing evidence differently across samples. This ``overthinking'' effect aligns with \citet{liu2025answer}'s observation that extended reasoning can cause models to diverge from initially correct answers on easy tasks.
+
+\subsection{CoT as a Capability Equalizer}
+
+One of our most striking findings is that CoT transforms near-random cross-model agreement into near-perfect agreement on math. \gptmini and \gptnano agree on only $15.5\%$ of math answers without CoT---reflecting the large capability gap between them---but $94.0\%$ with CoT. This suggests that CoT provides a shared computational scaffold that allows weaker models to reach answers that stronger models already know. The scaffold constrains the reasoning process to follow structured steps that, if executed correctly, lead to the unique correct answer regardless of the model's baseline capability.
+
+This has a practical consequence: ensembles of CoT-prompted models on math tasks will exhibit high agreement, and this agreement should not be interpreted as independent confirmation. The models are not independently arriving at the same answer; they are following the same CoT-induced reasoning structure.
+
+\subsection{Implications for Ensemble Design}
+
+Our results suggest that the value of multi-model ensembles depends on both the task and the prompting strategy:
+
+\para{Math / structured tasks with CoT.} Cross-model agreement is near-perfect, so ensembles provide little diversity benefit. However, the high agreement does correlate with correctness, so majority voting still serves as a reliability check.
+
+\para{Multiple-choice / commonsense tasks with CoT.} Cross-model agreement decreases, meaning ensembles capture genuine diversity. But this diversity partly reflects CoT-induced errors rather than legitimate alternative interpretations.
+
+\para{Direct prompting across task types.} Cross-model agreement is moderately high on multiple-choice tasks ($89$--$97\%$) and lower on math ($15$--$58\%$), reflecting natural capability differences. Ensembles under direct prompting may provide the most informative disagreement signals.
+
+\subsection{Limitations}
+
+\para{Single model family.} All three models come from the GPT-4.1 family and likely share training data and architectural design. Cross-family comparisons (e.g., GPT vs.\ Claude vs.\ Gemini) would better test whether CoT causes convergence across truly independent models. Our results should be interpreted as measuring convergence across model \emph{sizes} within a family, not across model \emph{families}.
+
+\para{Answer-level measurement only.} We measure convergence at the answer level, not at the level of reasoning chains or internal representations. The decoupling hypothesis \citep{matcha2025, chen2023two} suggests that answer convergence may mask reasoning divergence. Embedding-based similarity of full responses or probing internal activations would provide a more complete picture.
+
+\para{Sample size and task coverage.} We use 30 questions per dataset with 5 samples per question. While sufficient for detecting the large effects we observe, this may miss smaller effects on the multiple-choice datasets. Additionally, we test only three task types; other domains (coding, creative writing, translation) may exhibit different convergence patterns.
+
+\para{Prompt sensitivity.} We test only zero-shot CoT. Few-shot CoT, which provides exemplar reasoning chains, could produce different convergence patterns---particularly if exemplars constrain the reasoning format more tightly, potentially increasing convergence even on multiple-choice tasks.
+
+\para{Temperature choice.} Our results are conditioned on $T = 0.7$. Lower temperatures would increase convergence under both conditions; higher temperatures would decrease it. The relative effect of CoT may vary with temperature.
